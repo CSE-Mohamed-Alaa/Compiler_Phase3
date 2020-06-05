@@ -21,7 +21,7 @@ int line_number;
 %token <float_val> float_num
 %token int_kw float_kw if_kw else_kw while_kw
 %token assign
-%token l_bracket r_bracket l_curly_bracket r_curly_bracket semicolon
+%token l_bracket r_bracket l_curly_bracket l_curly_bracket semicolon
 
 
 %union{
