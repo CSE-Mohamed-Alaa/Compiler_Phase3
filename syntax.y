@@ -3,6 +3,8 @@
 
 extern int yylex();
 void yyerror(const char *);
+int next_line_number = 0;
+void backpatch(vector<int> *,int);
 
 %}
 
@@ -22,17 +24,21 @@ void yyerror(const char *);
 %token l_bracket r_bracket l_curly_bracket r_curly_bracket semicolon
 
 
+%type <next_list> STATEMENT STATEMENT_LIST IF WHILE
+
 %union{
     char* string_val;
     int int_val;
     float float_val;
+    vector<int> *next_list;
 }
 
 %%
 
-METHOD_BODY: STATEMENT_LIST;
-STATEMENT_LIST: STATEMENT | STATEMENT_LIST STATEMENT;
-STATEMENT: DECLARATION | IF | WHILE | ASSIGNMENT;
+METHOD_BODY: STATEMENT_LIST{backpatch($1.next_list,line_number);};
+STATEMENT_LIST: STATEMENT {$$.next_list = merge($1.next_list,$$.next_list);}
+		| STATEMENT_LIST {backpatch($1.next_list,line_number);} STATEMENT {$$.next_list = merge($3.next_list,$$.next_list);};
+STATEMENT: DECLARATION {$$.nextList = new vector<int>();}| IF{$$.nextList = $1.nextList;} | WHILE{$$.nextList = $1.nextList;}| ASSIGNMENT{$$.nextList = new vector<int>();};
 DECLARATION: PRIMITIVE_TYPE id semicolon;
 PRIMITIVE_TYPE: int_kw | float_kw;
 IF: if_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket STATEMENT_LIST r_curly_bracket else_kw l_curly_bracket STATEMENT_LIST r_curly_bracket;
