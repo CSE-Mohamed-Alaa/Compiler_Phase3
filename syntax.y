@@ -1,14 +1,12 @@
 %{
+#include <stdio.h>
 
-void yyerror(char *s);
-
-int line_number;
+extern int yylex();
+void yyerror(const char *);
 
 %}
 
-%language "c++"
 %code requires {
-    #include <string>
     #include <vector>
     using namespace std;
 }
@@ -25,7 +23,7 @@ int line_number;
 
 
 %union{
-    string string_val;
+    char* string_val;
     int int_val;
     float float_val;
 }
@@ -47,10 +45,11 @@ FACTOR: id | int_num | float_num | l_bracket SIMPLE_EXPRESSION r_bracket;
 
 %%
 
-void yyerror(char *s) {
+void yyerror(const char *s) {
     printf("Syntax Error on line %s\n", s);
 }
 
-void main() {
+int main() {
 	yyparse();
+	return 0;
 }
