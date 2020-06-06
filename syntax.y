@@ -9,7 +9,7 @@ using namespace std;
 #define FLOAT 1
 
 
-
+// pair <type,index in variable array>
 map<string, pair<int, int>> symbol_table;
 
 int line_address = 0;
@@ -20,8 +20,12 @@ vector<string> byte_code;
 extern int yylex();
 void yyerror(const char *);
 void back_patch(vector<int> *,int);
-add_to_symbol_table(string, int);
+int add_to_symbol_table(string, int);
 vector<int> * merge(vector<int> *, vector<int> *);
+void mul_op(string,int);
+void add_op(string op,int type);
+void load_id_into_stack(string s);
+void sign_op(string op,int type);
 
 
 %}
@@ -43,8 +47,7 @@ vector<int> * merge(vector<int> *, vector<int> *);
 
 
 %type <next_list> STATEMENT STATEMENT_LIST IF WHILE
-%type <int_val> PRIMITIVE_TYPE
-
+%type <int_val> PRIMITIVE_TYPE FACTOR TERM SIMPLE_EXPRESSION
 %union{
     char* string_val;
     int int_val;
@@ -57,16 +60,19 @@ vector<int> * merge(vector<int> *, vector<int> *);
 METHOD_BODY: STATEMENT_LIST{backpatch($1.next_list,line_address);};
 STATEMENT_LIST: STATEMENT {$$.next_list = merge($1.next_list,$$.next_list);}
 		| STATEMENT_LIST {backpatch($1.next_list,line_address);} STATEMENT {$$.next_list = merge($3.next_list,$$.next_list);};
-STATEMENT: DECLARATION {$$.nextList = new vector<int>();}| IF{$$.nextList = $1.nextList;} | WHILE{$$.nextList = $1.nextList;}| ASSIGNMENT{$$.nextList = new vector<int>();};
+STATEMENT: DECLARATION {$$.next_list = new vector<int>();}| IF{$$.nextList = $1.next_list;} | WHILE{$$.nextList = $1.next_list;}| ASSIGNMENT{$$.next_list = new vector<int>();};
 DECLARATION: PRIMITIVE_TYPE id 	{string s($2); add_to_symbol_table(s, $1);} semicolon;
 PRIMITIVE_TYPE: int_kw {$$ = INT} | float_kw {$$ = FLOAT};
 IF: if_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket STATEMENT_LIST r_curly_bracket else_kw l_curly_bracket STATEMENT_LIST r_curly_bracket;
 WHILE: while_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket STATEMENT_LIST r_curly_bracket;
-ASSIGNMENT: id assign SIMPLE_EXPRESSION semicolon;
+ASSIGNMENT: id assign SIMPLE_EXPRESSION {assign_op(to_string($1),$3);}semicolon;
 BOOL_EXPRESSION: SIMPLE_EXPRESSION relop SIMPLE_EXPRESSION;
-SIMPLE_EXPRESSION: TERM | addop TERM | SIMPLE_EXPRESSION addop TERM;
-TERM: FACTOR | TERM mulop FACTOR;
-FACTOR: id | int_num | float_num | l_bracket SIMPLE_EXPRESSION r_bracket;
+SIMPLE_EXPRESSION: TERM {$$ = $1;} | addop TERM {$$ = $2;sign_op(to_string($1),$$);}| SIMPLE_EXPRESSION addop TERM{$$ = $1 | $3;add_op(to_string($2),$$);};
+TERM: FACTOR {$$ = $1;} | TERM mulop FACTOR {$$ = $1 | $2;mul_op(to_string($2),$$);};
+FACTOR: id {$$ = load_id_into_stack(to_string($1));}
+	| int_num{$$ = INT;byte_code.push_back("ldc " + to_string($1)));line_address+=2;}
+	| float_num {$$ = FLOAT;byte_code.push_back("ldc " + to_string($1)));line_address+=2;}
+	| l_bracket SIMPLE_EXPRESSION {$$ = $1;}r_bracket;
 
 %%
 
@@ -109,6 +115,78 @@ void add_to_symbol_table(string id_name, int id_type){
         line_address += 3;
         symbol_table[id_name] = make_pair(id_type, local_var_index++);
     }
+}
+
+void mul_op(string op,int type){
+	if(type){
+		if(op == "*"){
+			byte_code.push_back("fmul");
+
+		}else{
+			byte_code.push_back("fdiv");
+
+		}
+	}else{
+		if(op == "*"){
+                			byte_code.push_back("imul");
+                	}else{
+                			byte_code.push_back("idiv");
+                }
+	}
+	line_address++;
+}
+void add_op(string op,int type){
+	if(type){
+		if(op == "+"){
+			byte_code.push_back("fadd");
+
+		}else{
+			byte_code.push_back("fsub");
+
+		}
+	}else{
+		if(op == "+"){
+                		byte_code.push_back("iadd");
+                	}else{
+                		byte_code.push_back("isub");
+                }
+	}
+	line_address++;
+}
+int load_id_into_stack(string id_name){
+	if(symbol_table.find(id_name) == symbol_table.end()){
+        	string error_message = id_name + " is not defined before";
+        	yyerror(error_message.c_str());
+    	}else{
+
+    		if(symbol_table[id_name].first){
+    		byte_code.push_back("fload " + to_string(symbol_table[id_name].second));
+
+    		}else{
+    		byte_code.push_back("iload " + to_string(symbol_table[id_name].second));
+    		}
+    		line_address+=2;
+    	}
+    	return symbol_table[id_name].first;
+}
+void sign_op(string sign,int type){
+	if( sign == "-" && type ){
+		byte_code.push_back("fneg");
+	}else if (sign == "-"){
+		byte_code.push_back("ineg");
+	}
+}
+void assign_op(string id_name,int assigned_type){
+	if(symbol_table.find(id_name) == symbol_table.end()){
+               	string error_message = id_name + " is not defined before";
+               	yyerror(error_message.c_str());
+        }else{
+        if(assigned_type == INT){
+        	if(){
+
+        	}
+        }
+        }
 }
 
 int main() {
