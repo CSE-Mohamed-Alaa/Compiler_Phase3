@@ -53,18 +53,18 @@ int load_id_into_stack(string s);
 
 %%
 
-METHOD_BODY: STATEMENT_LIST{back_patch($1,line_address); byte_code.push_back(to_string(line_address) +": return");};
+METHOD_BODY: STATEMENT_LIST{back_patch($1,line_address); $1->clear(); byte_code.push_back(to_string(line_address) +": return");};
 STATEMENT_LIST: STATEMENT {$$ = merge($1,$$);}
-    | STATEMENT_LIST {back_patch($1,line_address);} STATEMENT {$$ = merge($3,$$);};
+    | STATEMENT_LIST {back_patch($1,line_address); $1->clear();} STATEMENT {$$ = merge($3,$$);};
 STATEMENT: DECLARATION {$$ = new vector<int>();}| IF{$$ = $1;}
     | WHILE{$$ = $1;}| ASSIGNMENT{$$ = new vector<int>();};
 DECLARATION: PRIMITIVE_TYPE id 	{string s($2); add_to_symbol_table(s, $1);} semicolon;
 PRIMITIVE_TYPE: int_kw {$$ = INT;} | float_kw {$$ = FLOAT;};
 IF: if_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket
-	STATEMENT_LIST {back_patch($6,line_address); byte_code.push_back(to_string(line_address) +": goto "); line_address+=3;} IF_END
-	r_curly_bracket else_kw l_curly_bracket {back_patch($3,line_address);} STATEMENT_LIST r_curly_bracket {$$ = new vector<int>(); $$->push_back($8); $$ = merge($13,$$);};
+	STATEMENT_LIST {back_patch($6,line_address); $6->clear();byte_code.push_back(to_string(line_address) +": goto "); line_address+=3;} IF_END
+	r_curly_bracket else_kw l_curly_bracket {back_patch($3,line_address);$3->clear();} STATEMENT_LIST r_curly_bracket {$$ = new vector<int>(); $$->push_back($8); $$ = merge($13,$$);};
 WHILE: while_kw l_bracket LOOP_BEGIN BOOL_EXPRESSION r_bracket l_curly_bracket
-	STATEMENT_LIST {back_patch($7,line_address);}
+	STATEMENT_LIST {back_patch($7,line_address); $7->clear();}
 	r_curly_bracket {$$ = $4; byte_code.push_back(to_string(line_address) +": goto " + std::to_string($3)); line_address+=3;};
 ASSIGNMENT: id assign SIMPLE_EXPRESSION {assign_op(string($1),$3);}semicolon;
 BOOL_EXPRESSION: SIMPLE_EXPRESSION relop SIMPLE_EXPRESSION {$$ = new vector<int>(); rel_op($1, string($2), $3); $$->push_back(byte_code.size() - 1);};

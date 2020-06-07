@@ -1,12 +1,11 @@
-int i;
-i = 2;
+float result;
 int x;
 x = 10;
-while (i < 10) {
-    i = i + 1;
-    if (i < 5){
-        x = i + x;
-    }else {
-        x = i * x;
-    }
+int y;
+y = 10;
+if (x > y) {
+    result = x;
+}else {
+    result = y;
 }
+result = result + x * y;
