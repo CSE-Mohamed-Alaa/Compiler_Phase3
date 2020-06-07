@@ -1,5 +1,12 @@
-
 int i;
-    while (i < 2) {
-        i = i + 1;
+i = 2;
+int x;
+x = 10;
+while (i < 10) {
+    i = i + 1;
+    if (i < 5){
+        x = i + x;
+    }else {
+        x = i * x;
     }
+}
