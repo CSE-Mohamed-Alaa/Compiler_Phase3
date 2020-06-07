@@ -2,7 +2,6 @@
 	#include <bits/stdc++.h>
 	#include "y.tab.h"
 	#include <string.h>
-    void showError();
 
 %}
 letter [a-zA-Z]
@@ -28,13 +27,7 @@ fnum {digits}([.]{digit}*)?|[.]{digits}
 ")" {return r_bracket;}
 "{" {return l_curly_bracket;}
 "}" {return r_curly_bracket;}
-.   {showError();}
 %%
-
-
-void showError(){
-    printf("Other input");
-}
 int yywrap() {
    return -1;
 }
