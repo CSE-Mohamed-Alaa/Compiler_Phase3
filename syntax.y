@@ -11,16 +11,13 @@ extern  FILE *yyin;
 int line_address = 0;
 int local_var_index = 1;
 vector<string> byte_code;
-
-// pair <type,index in variable array>
-map<string, pair<int, int> > symbol_table;
-
+map<string, pair<int, int> > symbol_table;// pair <type,index in variable array>
 
 extern int yylex();
 void yyerror(const char *);
 void back_patch(vector<int> *,int);
-void add_to_symbol_table(string, int);
 vector<int> * merge(vector<int> *, vector<int> *);
+void add_to_symbol_table(string, int);
 void mul_op(string,int);
 void add_op(string op,int type);
 void assign_op(string id_name,int assigned_type);
@@ -28,8 +25,6 @@ void rel_op(int, string, int);
 string get_opposite_op(string op);
 void sign_op(string op,int type);
 int load_id_into_stack(string s);
-
-
 %}
 
 %code requires {
@@ -58,7 +53,7 @@ int load_id_into_stack(string s);
 
 %%
 
-METHOD_BODY: STATEMENT_LIST{back_patch($1,line_address);};
+METHOD_BODY: STATEMENT_LIST{back_patch($1,line_address); byte_code.push_back(to_string(line_address) +":return");};
 STATEMENT_LIST: STATEMENT {$$ = merge($1,$$);}
     | STATEMENT_LIST {back_patch($1,line_address);} STATEMENT {$$ = merge($3,$$);};
 STATEMENT: DECLARATION {$$ = new vector<int>();}| IF{$$ = $1;}
@@ -85,9 +80,8 @@ LOOP_BEGIN: {$$ = line_address;};
 %%
 
 void yyerror(const char *s) {
-    printf("Error %s\n", s);
+    printf("Error: %s\n", s);
 }
-
 
 void back_patch(vector<int> *list_ptr, int address) {
     vector<int> list = *list_ptr;

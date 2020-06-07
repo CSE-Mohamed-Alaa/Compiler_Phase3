@@ -27,6 +27,7 @@ fnum {digits}([.]{digit}*)?|[.]{digits}
 ")" {return r_bracket;}
 "{" {return l_curly_bracket;}
 "}" {return r_curly_bracket;}
+" "|"\t"|"\n" {}
 %%
 int yywrap() {
    return -1;

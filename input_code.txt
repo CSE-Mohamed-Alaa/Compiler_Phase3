@@ -1,4 +1,4 @@
-int i;
+
 int i;
     while (i < 2) {
         i = i + 1;
