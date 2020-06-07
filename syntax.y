@@ -21,14 +21,15 @@ map<string, pair<int, int> > symbol_table;
 extern int yylex();
 void yyerror(const char *);
 void back_patch(vector<int> *,int);
-int add_to_symbol_table(string, int);
+void add_to_symbol_table(string, int);
 vector<int> * merge(vector<int> *, vector<int> *);
 void mul_op(string,int);
 void add_op(string op,int type);
+void assign_op(string id_name,int assigned_type);
 void rel_op(int, string, int);
 string get_opposite_op(string op);
 void sign_op(string op,int type);
-void load_id_into_stack(string s);
+int load_id_into_stack(string s);
 
 
 %}
@@ -67,21 +68,21 @@ STATEMENT: DECLARATION {$$ = new vector<int>();}| IF{$$ = $1;} | WHILE{$$ = $1;}
 DECLARATION: PRIMITIVE_TYPE id 	{string s($2); add_to_symbol_table(s, $1);} semicolon;
 PRIMITIVE_TYPE: int_kw {$$ = INT;} | float_kw {$$ = FLOAT;};
 IF: if_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket
-	STATEMENT_LIST {back_patch($6,line_address); byte_code.push_back("goto "); line_address+=3;} IF_END
+	STATEMENT_LIST {back_patch($6,line_address); byte_code.push_back(to_string(line_address) +": goto "); line_address+=3;} IF_END
 	r_curly_bracket else_kw l_curly_bracket {back_patch($3,line_address);} STATEMENT_LIST r_curly_bracket {$$ = new vector<int>(); $$->push_back($8); $$ = merge($13,$$);};
 WHILE: while_kw l_bracket LOOP_BEGIN BOOL_EXPRESSION r_bracket l_curly_bracket
 	STATEMENT_LIST {back_patch($7,line_address);}
-	r_curly_bracket {$$ = $4; byte_code.push_back("goto " + std::to_string($3)); line_address+=3;};
-ASSIGNMENT: id assign SIMPLE_EXPRESSION {assign_op(to_string($1),$3);}semicolon;
-BOOL_EXPRESSION: SIMPLE_EXPRESSION relop SIMPLE_EXPRESSION {$$ = = new vector<int>(); rel_op($1, to_string($2), $3); $$->push_back(byte_code.size() - 1);};
-SIMPLE_EXPRESSION: TERM {$$ = $1;} | addop TERM {$$ = $2;sign_op(to_string($1),$$);}| SIMPLE_EXPRESSION addop TERM{$$ = $1 | $3;add_op(to_string($2),$$);};
-TERM: FACTOR {$$ = $1;} | TERM mulop FACTOR {$$ = $1 | $2;mul_op(to_string($2),$$);};
-FACTOR: id {$$ = load_id_into_stack(to_string($1));}
-	| int_num{$$ = INT;byte_code.push_back("ldc " + to_string($1));line_address+=2;}
-	| float_num {$$ = FLOAT;byte_code.push_back("ldc " + to_string($1));line_address+=2;}
+	r_curly_bracket {$$ = $4; byte_code.push_back(to_string(line_address) +":goto " + std::to_string($3)); line_address+=3;};
+ASSIGNMENT: id assign SIMPLE_EXPRESSION {assign_op(string($1),$3);}semicolon;
+BOOL_EXPRESSION: SIMPLE_EXPRESSION relop SIMPLE_EXPRESSION {$$ = new vector<int>(); rel_op($1, string($2), $3); $$->push_back(byte_code.size() - 1);};
+SIMPLE_EXPRESSION: TERM {$$ = $1;} | addop TERM {$$ = $2;sign_op(string($1),$$);}| SIMPLE_EXPRESSION addop TERM{$$ = $1 | $3;add_op(string($2),$$);};
+TERM: FACTOR {$$ = $1;} | TERM mulop FACTOR {$$ = $1 | $3;mul_op(string($2),$$);};
+FACTOR: id {$$ = load_id_into_stack(string($1));}
+	| int_num{$$ = INT;byte_code.push_back(to_string(line_address) +":ldc " + to_string($1));line_address+=2;}
+	| float_num {$$ = FLOAT;byte_code.push_back(to_string(line_address) +":ldc " + to_string($1));line_address+=2;}
 	| l_bracket SIMPLE_EXPRESSION r_bracket {$$ = $2;};
-IF_END: {$$ = byte_code.size() - 1;}
-LOOP_BEGIN: {$$ = line_address};
+IF_END: {$$ = byte_code.size() - 1;};
+LOOP_BEGIN: {$$ = line_address;};
 %%
 
 void yyerror(const char *s) {
@@ -91,8 +92,8 @@ void yyerror(const char *s) {
 
 void back_patch(vector<int> *list_ptr, int address) {
     vector<int> list = *list_ptr;
-    for(int i = 0 ; i < lists.size() ; i++) {
-        byte_code[list[i]] = byte_code[list[i]] + to_string(address));
+    for(int i = 0 ; i < list.size() ; i++) {
+        byte_code[list[i]] = byte_code[list[i]] + to_string(address);
     }
 }
 
@@ -112,13 +113,16 @@ void add_to_symbol_table(string id_name, int id_type){
         yyerror(error_message.c_str());
     }else{
         if(id_type == INT) {
-            byte_code.push_back("iconst_0");
-            byte_code.push_back("istore " + to_string(local_var_index));
+            byte_code.push_back(to_string(line_address) +":iconst_0");
+            line_address ++;
+            byte_code.push_back(to_string(line_address) +":istore " + to_string(local_var_index));
+            line_address+=2;
         } else if (id_type == FLOAT) {
-            byte_code.push_back("fconst_0");
-            byte_code.push_back("fstore " + to_string(local_var_index));
+            byte_code.push_back(to_string(line_address) +":fconst_0");
+            line_address ++;
+            byte_code.push_back(to_string(line_address) +":fstore " + to_string(local_var_index));
+            line_address+=2;
         }
-        line_address += 3;
         symbol_table[id_name] = make_pair(id_type, local_var_index++);
     }
 }
@@ -126,17 +130,17 @@ void add_to_symbol_table(string id_name, int id_type){
 void mul_op(string op,int type){
 	if(type){
 		if(op == "*"){
-			byte_code.push_back("fmul");
+			byte_code.push_back(to_string(line_address) +":fmul");
 
 		}else{
-			byte_code.push_back("fdiv");
+			byte_code.push_back(to_string(line_address) +":fdiv");
 
 		}
 	}else{
 		if(op == "*"){
-                	byte_code.push_back("imul");
+                	byte_code.push_back(to_string(line_address) +":imul");
                 }else{
-                	byte_code.push_back("idiv");
+                	byte_code.push_back(to_string(line_address) +":idiv");
                 }
 	}
 	line_address++;
@@ -145,17 +149,17 @@ void mul_op(string op,int type){
 void add_op(string op,int type){
 	if(type){
 		if(op == "+"){
-			byte_code.push_back("fadd");
+			byte_code.push_back(to_string(line_address) +":fadd");
 
 		}else{
-			byte_code.push_back("fsub");
+			byte_code.push_back(to_string(line_address) +":fsub");
 
 		}
 	}else{
 		if(op == "+"){
-                		byte_code.push_back("iadd");
+                		byte_code.push_back(to_string(line_address) +":iadd");
                 	}else{
-                		byte_code.push_back("isub");
+                		byte_code.push_back(to_string(line_address) +":isub");
                 }
 	}
 	line_address++;
@@ -164,11 +168,12 @@ void add_op(string op,int type){
 void rel_op(int type1, string op, int type2){
 	if (type1 == type2){
 		if(type1){
-			byte_code.push_back("fcmpl");
-			byte_code.push_back("if" + get_opposite_op(op) + " ");
-			line_address+=4;
+			byte_code.push_back(to_string(line_address) +":fcmpl");
+			line_address++;
+			byte_code.push_back(to_string(line_address) +":if" + get_opposite_op(op) + " ");
+			line_address+=3;
 		} else {
-			byte_code.push_back("if_icmp" + get_opposite_op(op) + " ");
+			byte_code.push_back(to_string(line_address) +":if_icmp" + get_opposite_op(op) + " ");
 			line_address+=3;
 		}
 	} else {
@@ -198,10 +203,10 @@ int load_id_into_stack(string id_name){
         	yyerror(error_message.c_str());
     	}else{
     		if(symbol_table[id_name].first){
-    			byte_code.push_back("fload " + to_string(symbol_table[id_name].second));
+    			byte_code.push_back(to_string(line_address) +":fload " + to_string(symbol_table[id_name].second));
 
     		}else{
-    			byte_code.push_back("iload " + to_string(symbol_table[id_name].second));
+    			byte_code.push_back(to_string(line_address) +":iload " + to_string(symbol_table[id_name].second));
     		}
     		line_address+=2;
     	}
@@ -209,10 +214,11 @@ int load_id_into_stack(string id_name){
 }
 void sign_op(string sign,int type){
 	if( sign == "-" && type ){
-		byte_code.push_back("fneg");
+		byte_code.push_back(to_string(line_address) +":fneg");
 	}else if (sign == "-"){
-		byte_code.push_back("ineg");
+		byte_code.push_back(to_string(line_address) +":ineg");
 	}
+	line_address++;
 }
 void assign_op(string id_name,int assigned_type){
 	if(symbol_table.find(id_name) == symbol_table.end()){
@@ -220,14 +226,14 @@ void assign_op(string id_name,int assigned_type){
                	yyerror(error_message.c_str());
         }else{
 		if(symbol_table[id_name].first == INT && assigned_type == INT){
-			byte_code.push_back("istore " + symbol_table[id_name].second);
+			byte_code.push_back(to_string(line_address) +":istore " + to_string(symbol_table[id_name].second));
 			line_address+=2;
 		}else if (symbol_table[id_name].first == FLOAT && assigned_type == FLOAT){
-			byte_code.push_back("fstore " + symbol_table[id_name].second);
+			byte_code.push_back(to_string(line_address) +":fstore " + to_string(symbol_table[id_name].second));
 			line_address+=2;
 		} else if (symbol_table[id_name].first == FLOAT && assigned_type == INT){
-			byte_code.push_back("i2f");
-			byte_code.push_back("fstore " + symbol_table[id_name].second);
+			byte_code.push_back(to_string(line_address) +":i2f");
+			byte_code.push_back(to_string(line_address) +":fstore " + to_string(symbol_table[id_name].second));
                         line_address+=3;
 		} else {
 			string error_message ="type miss match: " + id_name + " can't be assigned to float";

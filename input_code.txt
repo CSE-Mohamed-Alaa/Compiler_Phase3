@@ -1,6 +1,4 @@
-int result;
-if (5 > 10) {
-    result = 1;
-} else {
-    result = 2;
-}
+  int i;
+    while (i < 2) {
+        i = i + 1;
+    }
