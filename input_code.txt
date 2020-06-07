@@ -1,0 +1,6 @@
+int result;
+if (5 > 10) {
+    result = 1;
+} else {
+    result = 2;
+}

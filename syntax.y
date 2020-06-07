@@ -2,19 +2,20 @@
 
 #include <bits/stdc++.h>
 #include <unistd.h>
+#include <string>
 
 using namespace std;
 
 #define INT 0
 #define FLOAT 1
 
-
-// pair <type,index in variable array>
-map<string, pair<int, int>> symbol_table;
-
+extern  FILE *yyin;
 int line_address = 0;
 int local_var_index = 1;
 vector<string> byte_code;
+
+// pair <type,index in variable array>
+map<string, pair<int, int> > symbol_table;
 
 
 extern int yylex();
@@ -24,8 +25,10 @@ int add_to_symbol_table(string, int);
 vector<int> * merge(vector<int> *, vector<int> *);
 void mul_op(string,int);
 void add_op(string op,int type);
-void load_id_into_stack(string s);
+void rel_op(int, string, int);
+string get_opposite_op(string op);
 void sign_op(string op,int type);
+void load_id_into_stack(string s);
 
 
 %}
@@ -46,34 +49,39 @@ void sign_op(string op,int type);
 %token l_bracket r_bracket l_curly_bracket r_curly_bracket semicolon
 
 
-%type <next_list> STATEMENT STATEMENT_LIST IF WHILE
-%type <int_val> PRIMITIVE_TYPE FACTOR TERM SIMPLE_EXPRESSION
+%type <list> STATEMENT STATEMENT_LIST IF WHILE BOOL_EXPRESSION
+%type <int_val> PRIMITIVE_TYPE FACTOR TERM SIMPLE_EXPRESSION IF_END LOOP_BEGIN
 %union{
     char* string_val;
     int int_val;
     float float_val;
-    vector<int> *next_list;
+    vector<int> *list;
 }
 
 %%
 
-METHOD_BODY: STATEMENT_LIST{backpatch($1.next_list,line_address);};
-STATEMENT_LIST: STATEMENT {$$.next_list = merge($1.next_list,$$.next_list);}
-		| STATEMENT_LIST {backpatch($1.next_list,line_address);} STATEMENT {$$.next_list = merge($3.next_list,$$.next_list);};
-STATEMENT: DECLARATION {$$.next_list = new vector<int>();}| IF{$$.nextList = $1.next_list;} | WHILE{$$.nextList = $1.next_list;}| ASSIGNMENT{$$.next_list = new vector<int>();};
+METHOD_BODY: STATEMENT_LIST{back_patch($1,line_address);};
+STATEMENT_LIST: STATEMENT {$$ = merge($1,$$);}
+		| STATEMENT_LIST {back_patch($1,line_address);} STATEMENT {$$ = merge($3,$$);};
+STATEMENT: DECLARATION {$$ = new vector<int>();}| IF{$$ = $1;} | WHILE{$$ = $1;}| ASSIGNMENT{$$ = new vector<int>();};
 DECLARATION: PRIMITIVE_TYPE id 	{string s($2); add_to_symbol_table(s, $1);} semicolon;
-PRIMITIVE_TYPE: int_kw {$$ = INT} | float_kw {$$ = FLOAT};
-IF: if_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket STATEMENT_LIST r_curly_bracket else_kw l_curly_bracket STATEMENT_LIST r_curly_bracket;
-WHILE: while_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket STATEMENT_LIST r_curly_bracket;
+PRIMITIVE_TYPE: int_kw {$$ = INT;} | float_kw {$$ = FLOAT;};
+IF: if_kw l_bracket BOOL_EXPRESSION r_bracket l_curly_bracket
+	STATEMENT_LIST {back_patch($6,line_address); byte_code.push_back("goto "); line_address+=3;} IF_END
+	r_curly_bracket else_kw l_curly_bracket {back_patch($3,line_address);} STATEMENT_LIST r_curly_bracket {$$ = new vector<int>(); $$->push_back($8); $$ = merge($13,$$);};
+WHILE: while_kw l_bracket LOOP_BEGIN BOOL_EXPRESSION r_bracket l_curly_bracket
+	STATEMENT_LIST {back_patch($7,line_address);}
+	r_curly_bracket {$$ = $4; byte_code.push_back("goto " + std::to_string($3)); line_address+=3;};
 ASSIGNMENT: id assign SIMPLE_EXPRESSION {assign_op(to_string($1),$3);}semicolon;
-BOOL_EXPRESSION: SIMPLE_EXPRESSION relop SIMPLE_EXPRESSION;
+BOOL_EXPRESSION: SIMPLE_EXPRESSION relop SIMPLE_EXPRESSION {$$ = = new vector<int>(); rel_op($1, to_string($2), $3); $$->push_back(byte_code.size() - 1);};
 SIMPLE_EXPRESSION: TERM {$$ = $1;} | addop TERM {$$ = $2;sign_op(to_string($1),$$);}| SIMPLE_EXPRESSION addop TERM{$$ = $1 | $3;add_op(to_string($2),$$);};
 TERM: FACTOR {$$ = $1;} | TERM mulop FACTOR {$$ = $1 | $2;mul_op(to_string($2),$$);};
 FACTOR: id {$$ = load_id_into_stack(to_string($1));}
-	| int_num{$$ = INT;byte_code.push_back("ldc " + to_string($1)));line_address+=2;}
-	| float_num {$$ = FLOAT;byte_code.push_back("ldc " + to_string($1)));line_address+=2;}
-	| l_bracket SIMPLE_EXPRESSION {$$ = $1;}r_bracket;
-
+	| int_num{$$ = INT;byte_code.push_back("ldc " + to_string($1));line_address+=2;}
+	| float_num {$$ = FLOAT;byte_code.push_back("ldc " + to_string($1));line_address+=2;}
+	| l_bracket SIMPLE_EXPRESSION r_bracket {$$ = $2;};
+IF_END: {$$ = byte_code.size() - 1;}
+LOOP_BEGIN: {$$ = line_address};
 %%
 
 void yyerror(const char *s) {
@@ -95,8 +103,6 @@ vector<int> * merge(vector<int> *list1, vector<int> *list2) {
     list->insert(list->end(), list2->begin(), list2->end());
     return list;
 }
-
-
 
 
 void add_to_symbol_table(string id_name, int id_type){
@@ -128,13 +134,14 @@ void mul_op(string op,int type){
 		}
 	}else{
 		if(op == "*"){
-                			byte_code.push_back("imul");
-                	}else{
-                			byte_code.push_back("idiv");
+                	byte_code.push_back("imul");
+                }else{
+                	byte_code.push_back("idiv");
                 }
 	}
 	line_address++;
 }
+
 void add_op(string op,int type){
 	if(type){
 		if(op == "+"){
@@ -153,17 +160,48 @@ void add_op(string op,int type){
 	}
 	line_address++;
 }
+
+void rel_op(int type1, string op, int type2){
+	if (type1 == type2){
+		if(type1){
+			byte_code.push_back("fcmpl");
+			byte_code.push_back("if" + get_opposite_op(op) + " ");
+			line_address+=4;
+		} else {
+			byte_code.push_back("if_icmp" + get_opposite_op(op) + " ");
+			line_address+=3;
+		}
+	} else {
+		//TODO
+	}
+}
+
+string get_opposite_op(string op){
+	//"=="|"!="|">"|">="|"<"|"<="
+	if(op == "=="){
+		return "ne";
+	}else if (op == "!="){
+		return "eq";
+	}else if (op == ">"){
+         	return "le";
+        }else if (op == ">="){
+                 return "lt";
+        }else if (op == "<"){
+                 return "ge";
+        }else if (op == "<="){
+                 return "gt";
+        }
+}
 int load_id_into_stack(string id_name){
 	if(symbol_table.find(id_name) == symbol_table.end()){
         	string error_message = id_name + " is not defined before";
         	yyerror(error_message.c_str());
     	}else{
-
     		if(symbol_table[id_name].first){
-    		byte_code.push_back("fload " + to_string(symbol_table[id_name].second));
+    			byte_code.push_back("fload " + to_string(symbol_table[id_name].second));
 
     		}else{
-    		byte_code.push_back("iload " + to_string(symbol_table[id_name].second));
+    			byte_code.push_back("iload " + to_string(symbol_table[id_name].second));
     		}
     		line_address+=2;
     	}
@@ -181,15 +219,34 @@ void assign_op(string id_name,int assigned_type){
                	string error_message = id_name + " is not defined before";
                	yyerror(error_message.c_str());
         }else{
-        if(assigned_type == INT){
-        	if(){
-
-        	}
-        }
+		if(symbol_table[id_name].first == INT && assigned_type == INT){
+			byte_code.push_back("istore " + symbol_table[id_name].second);
+			line_address+=2;
+		}else if (symbol_table[id_name].first == FLOAT && assigned_type == FLOAT){
+			byte_code.push_back("fstore " + symbol_table[id_name].second);
+			line_address+=2;
+		} else if (symbol_table[id_name].first == FLOAT && assigned_type == INT){
+			byte_code.push_back("i2f");
+			byte_code.push_back("fstore " + symbol_table[id_name].second);
+                        line_address+=3;
+		} else {
+			string error_message ="type miss match: " + id_name + " can't be assigned to float";
+			yyerror(error_message.c_str());
+		}
         }
 }
 
 int main() {
+	FILE *input_file = fopen("input_code.txt", "r");
+	if (!input_file) {
+		string error_message ="Cannot find input_code.txt";
+		yyerror(error_message.c_str());
+	}
+	yyin  = input_file;
 	yyparse();
+	ofstream output_file("input_code.class");
+	for ( int i = 0 ; i < byte_code.size() ; i++) {
+		output_file<<byte_code[i]<<endl;
+	}
 	return 0;
 }

@@ -1,4 +1,5 @@
 %{
+	#include <bits/stdc++.h>
 	#include "y.tab.h"
 	#include <string.h>
     void showError();
